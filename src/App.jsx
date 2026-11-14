@@ -221,14 +221,77 @@ function AstroCompanion({ position, mood }) {
   </group>;
 }
 
+
+function MissionTerrain({ planet }) {
+  const rocks = useMemo(() => Array.from({ length: 42 }, (_, i) => {
+    const angle = (i / 42) * Math.PI * 2;
+    const radius = 4.5 + ((i * 17) % 35) / 10;
+    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, s: 0.08 + ((i * 13) % 9) / 35, r: (i * 0.71) % Math.PI };
+  }), []);
+  return <group>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]}>
+      <circleGeometry args={[12, 96]} />
+      <meshStandardMaterial color={planet === "Mars" ? "#7f3f2e" : "#6f7782"} roughness={1} metalness={0} />
+    </mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.105, 0]}>
+      <ringGeometry args={[4.2, 4.27, 96]} />
+      <meshStandardMaterial color={planet === "Mars" ? "#d56d4b" : "#cbd3dd"} emissive={planet === "Mars" ? "#35150f" : "#111820"} emissiveIntensity={0.35} />
+    </mesh>
+    {rocks.map((rock, i) => <mesh key={i} position={[rock.x, rock.s * 0.5 - 0.03, rock.z]} rotation={[0, rock.r, 0]} scale={[rock.s * 1.7, rock.s, rock.s * 1.25]}>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color={planet === "Mars" ? "#633427" : "#555c66"} roughness={1} />
+    </mesh>)}
+  </group>;
+}
+
+function SpaceDust({ planet }) {
+  const ref = React.useRef();
+  useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * (planet === "Mars" ? 0.012 : 0.006); });
+  const dots = useMemo(() => Array.from({ length: 110 }, (_, i) => [
+    ((i * 37) % 120) / 10 - 6,
+    ((i * 19) % 55) / 10 + 0.25,
+    ((i * 61) % 120) / 10 - 6
+  ]), []);
+  return <group ref={ref}>
+    {dots.map((p, i) => <mesh key={i} position={p} scale={0.012 + (i % 4) * 0.004}>
+      <sphereGeometry args={[1, 6, 6]} />
+      <meshBasicMaterial color={planet === "Mars" ? "#e6a087" : "#dbe8f7"} transparent opacity={0.24} />
+    </mesh>)}
+  </group>;
+}
+
+function HoloRing({ position, color = "#5bd4ff", active = false }) {
+  const ref = React.useRef();
+  useFrame((state) => {
+    if (!ref.current) return;
+    ref.current.rotation.z = state.clock.elapsedTime * (active ? 1.4 : 0.35);
+    ref.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 2) * (active ? 0.08 : 0.025));
+  });
+  return <group ref={ref} position={position}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <torusGeometry args={[0.78, 0.018, 8, 48]} />
+      <meshBasicMaterial color={color} transparent opacity={active ? 0.85 : 0.28} />
+    </mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.2, 0.23, 32]} />
+      <meshBasicMaterial color={color} transparent opacity={active ? 0.5 : 0.14} />
+    </mesh>
+  </group>;
+}
+
 function OutpostScene({ planet, selected, onSelect, day, activeSystem, roverMoving, eventActive }) {
   const p = PLANETS[planet];
   return <>
-    <color attach="background" args={["#07111f"]} />
-    <ambientLight intensity={1.35} />
-    <directionalLight position={[7, 10, 5]} intensity={2.1} />
-    <Stars radius={90} depth={45} count={1800} factor={2.5} fade />
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}><circleGeometry args={[12, 64]} /><meshStandardMaterial color={p.ground} roughness={1} /></mesh>
+    <color attach="background" args={[planet === "Mars" ? "#160c10" : "#050a14"]} />
+    <fog attach="fog" args={[planet === "Mars" ? "#160c10" : "#050a14", 10, 25]} />
+    <ambientLight intensity={0.75} />
+    <directionalLight castShadow position={[6, 10, 4]} intensity={3.2} shadow-mapSize={[2048, 2048]} shadow-camera-left={-10} shadow-camera-right={10} shadow-camera-top={10} shadow-camera-bottom={-10} />
+    <pointLight position={[-5, 4, 2]} intensity={2.2} distance={12} color={planet === "Mars" ? "#ff8a5c" : "#7bc7ff"} />
+    <pointLight position={[5, 2, -4]} intensity={1.3} distance={10} color="#6f7dff" />
+    <Stars radius={90} depth={45} count={2600} factor={3.2} fade speed={0.35} />
+    <MissionTerrain planet={planet} />
+    <SpaceDust planet={planet} />
+    <HoloRing position={[0, 0.03, 0]} active={eventActive} color={planet === "Mars" ? "#ff8a66" : "#66d9ff"} />
     <Building name="Crew Habitat" position={[-2.4, 0, -0.3]} color={BUILDINGS["Crew Habitat"].color} selected={selected === "Crew Habitat"} active={activeSystem === "Crew Habitat"} onClick={onSelect} />
     <Building name="Greenhouse" position={[2.1, 0, -1.1]} color={BUILDINGS.Greenhouse.color} selected={selected === "Greenhouse"} active={activeSystem === "Greenhouse"} onClick={onSelect} />
     <Building name="Research Lab" position={[0.2, 0, 2.2]} color={BUILDINGS["Research Lab"].color} selected={selected === "Research Lab"} active={activeSystem === "Research Lab"} onClick={onSelect} />
@@ -239,7 +302,7 @@ function OutpostScene({ planet, selected, onSelect, day, activeSystem, roverMovi
     <Astronaut position={[-1.1, 0, 1.2]} walking={day % 2 === 0} />
     <Astronaut position={[1.0, 0, 0.4]} color="#dbe7ff" walking={day % 3 === 0} />
     <AstroCompanion position={[0.9, 1.7, -2.1]} mood={eventActive ? "alert" : "calm"} />
-    <OrbitControls makeDefault minDistance={7} maxDistance={20} maxPolarAngle={Math.PI / 2.08} target={[0, 0, 0]} />
+    <OrbitControls makeDefault enableDamping dampingFactor={0.06} minDistance={6.5} maxDistance={19} maxPolarAngle={Math.PI / 2.08} target={[0, 0.25, 0]} />
   </>;
 }
 
@@ -357,9 +420,10 @@ export default function App() {
       <section className="scene-card">
         <div className="scene-toolbar"><span>COMMAND DECK</span><span>Drag to rotate • Scroll to zoom • Click systems</span></div>
         <div className="scene">
-          <Canvas camera={{ position: [9, 8, 10], fov: 43 }}>
+          <Canvas shadows dpr={[1, 2]} camera={{ position: [9, 8, 10], fov: 43 }} gl={{ antialias: true }}>
             <OutpostScene planet={planet} selected={selected} onSelect={interactBuilding} day={day} activeSystem={activeSystem} roverMoving={roverMoving} eventActive={!!event} />
           </Canvas>
+          <div className="scene-hud"><span>● LIVE FEED</span><b>{planet === "Mars" ? "SOL" : "LUNAR DAY"} {day}</b><small>{eventActive ? "⚠ MISSION EVENT" : "SYSTEMS NOMINAL"}</small></div>
           <div className="astro-card"><div className="astro-avatar">🤖</div><div><b>Astro</b><span>Mission companion</span></div><div className="astro-dot" /></div>
         </div>
         <div className="event-strip"><MessageCircle size={17} /><span>{message}</span></div>
